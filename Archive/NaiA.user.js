@@ -11,7 +11,7 @@
 // @match        https://notion.site/*
 // @match        https://*.notion.so/*
 // @match        https://notion.so/*
-// @author       Dflash
+// @author       Dflashh
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -184,7 +184,6 @@
          * 여기서는 아이콘/상태 애니메이션만 담당해서 PC·모바일 반응형 디자인을 따라간다.
          */
         #${BUTTON_ID} {
-            color: #fff;
             cursor: pointer;
             flex: 0 0 auto;
         }
@@ -210,6 +209,7 @@
             height: 16px;
             font-size: 18px;
             line-height: 16px;
+            color: var(--nai-nav-diamond-color, currentColor);
             transform-origin: 50% 50%;
             will-change: transform, opacity, filter;
         }
@@ -379,6 +379,21 @@
             color: #fff;
             font: inherit;
             outline: none;
+        }
+
+        #${MODAL_ID} .nai-loader-input,
+        #${MODAL_ID} .nai-loader-textarea,
+        #${MODAL_ID} .nai-loader-select {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            caret-color: #ffffff;
+        }
+
+        #${MODAL_ID} .nai-loader-input::placeholder,
+        #${MODAL_ID} .nai-loader-textarea::placeholder {
+            color: #777b92 !important;
+            -webkit-text-fill-color: #777b92 !important;
+            opacity: 1 !important;
         }
 
         .nai-loader-textarea {
@@ -6071,28 +6086,98 @@ ${pagePayload}
         };
     }
 
+    function getNavbarMenuIconColor(menuButton) {
+        if (!menuButton) return '';
+
+        const icon = menuButton.querySelector('svg, [class]') || menuButton.firstElementChild;
+        const candidates = [icon, menuButton].filter(Boolean);
+
+        for (const element of candidates) {
+            const style = getComputedStyle(element);
+            const values = [
+                style.backgroundColor,
+                style.color,
+                style.fill,
+                style.stroke,
+                style.webkitTextFillColor
+            ];
+
+            for (const value of values) {
+                const color = String(value || '').trim();
+                if (
+                    color &&
+                    color !== 'transparent' &&
+                    color !== 'none' &&
+                    color !== 'currentcolor' &&
+                    !/^rgba?\([^)]*,\s*0(?:\.0+)?\s*\)$/i.test(color)
+                ) {
+                    return color;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    function syncNavbarDiamondColor(menuButton, archiveButton) {
+        if (!menuButton || !archiveButton) return;
+        const iconColor = getNavbarMenuIconColor(menuButton);
+        if (iconColor) {
+            archiveButton.style.setProperty('--nai-nav-diamond-color', iconColor);
+        } else {
+            archiveButton.style.removeProperty('--nai-nav-diamond-color');
+        }
+    }
+
     function syncNavbarButtonAppearance(menuButton, archiveButton) {
         if (!menuButton || !archiveButton) return;
 
+        const diamondColor = archiveButton.style.getPropertyValue('--nai-nav-diamond-color');
         archiveButton.className = menuButton.className || '';
         archiveButton.style.cssText = menuButton.style.cssText || '';
+        if (diamondColor) {
+            archiveButton.style.setProperty('--nai-nav-diamond-color', diamondColor);
+        }
+        syncNavbarDiamondColor(menuButton, archiveButton);
         syncGlobalAnalyzeUi();
     }
 
     function watchNavbarButtonAppearance(menuButton, archiveButton) {
         if (!menuButton || !archiveButton) return;
 
-        const appearanceObserver = new MutationObserver(() => {
-            if (!menuButton.isConnected || !archiveButton.isConnected) {
-                appearanceObserver.disconnect();
-                return;
-            }
-            syncNavbarButtonAppearance(menuButton, archiveButton);
-        });
+        let syncFrame = null;
+        const scheduleSync = () => {
+            if (syncFrame) cancelAnimationFrame(syncFrame);
+            syncFrame = requestAnimationFrame(() => {
+                syncFrame = null;
+                if (!menuButton.isConnected || !archiveButton.isConnected) {
+                    appearanceObserver.disconnect();
+                    rootObserver.disconnect();
+                    bodyObserver?.disconnect();
+                    return;
+                }
+                syncNavbarButtonAppearance(menuButton, archiveButton);
+            });
+        };
 
+        const appearanceObserver = new MutationObserver(scheduleSync);
         appearanceObserver.observe(menuButton, {
             attributes: true,
             attributeFilter: ['class', 'style']
+        });
+
+        const rootObserver = new MutationObserver(scheduleSync);
+        rootObserver.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class', 'style', 'data-theme']
+        });
+
+        const bodyObserver = document.body
+            ? new MutationObserver(scheduleSync)
+            : null;
+        bodyObserver?.observe(document.body, {
+            attributes: true,
+            attributeFilter: ['class', 'style', 'data-theme']
         });
     }
 
