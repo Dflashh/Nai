@@ -11,7 +11,7 @@
 // @match        https://notion.site/*
 // @match        https://*.notion.so/*
 // @match        https://notion.so/*
-// @author       Dflashh
+// @author       Dflash
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
